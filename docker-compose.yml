@@ -4,7 +4,8 @@ services:
     build:
       context: .
       target: bot
-    container_name: ghcr.io/fuduxixi/xai-telegram-media-bot:latest
+    image: ghcr.io/fuduxixi/xai-telegram-media-bot:latest
+    container_name: xai-telegram-media-bot
     restart: unless-stopped
     env_file:
       - .env
@@ -23,7 +24,8 @@ services:
     build:
       context: .
       target: web
-    container_name: ghcr.io/fuduxixi/xai-telegram-media-web:latest
+    image: ghcr.io/fuduxixi/xai-telegram-media-web:latest
+    container_name: xai-telegram-media-web
     restart: unless-stopped
     env_file:
       - .env
