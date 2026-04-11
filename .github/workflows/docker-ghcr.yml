@@ -52,7 +52,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Dockerfile-2
+          file: ./Dockerfile
           target: ${{ matrix.target }}
           push: true
           platforms: linux/amd64,linux/arm64
