@@ -41,4 +41,4 @@ services:
       - ./logs:/app/logs
       - ./.env:/app/.env
     ports:
-      - "${WEB_PORT:-5112}:5000"
+      - "${WEB_PORT:-5000}:5000"
