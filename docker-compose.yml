@@ -1,0 +1,44 @@
+# Author: by fuduxixi
+services:
+  telegram-bot:
+    build:
+      context: .
+      target: bot
+    container_name: ghcr.io/fuduxixi/xai-telegram-media-bot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - BOT_LOG_FILE=/app/logs/bot.log
+      - BOT_STATUS_FILE=/app/data/bot-status.json
+      - BOT_RELOAD_SIGNAL_FILE=/app/data/reload-bot.signal
+      - PYTHONUNBUFFERED=1
+    command: ["./scripts/run_bot_docker.sh"]
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - /tmp:/tmp
+
+  web-config:
+    build:
+      context: .
+      target: web
+    container_name: ghcr.io/fuduxixi/xai-telegram-media-web:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - WEB_CONFIG_PORT=5000
+      - BOT_LOG_FILE=/app/logs/bot.log
+      - BOT_STATUS_FILE=/app/data/bot-status.json
+      - BOT_RELOAD_SIGNAL_FILE=/app/data/reload-bot.signal
+      - FLASK_ENV=production
+    command: ["python", "web-config.py"]
+    depends_on:
+      - telegram-bot
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    ports:
+      - "${WEB_PORT:-5112}:5000"
