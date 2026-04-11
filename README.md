@@ -89,7 +89,7 @@ TG_ALLOWED_USER_IDS=123456789
 ADMIN_USER=admin
 ADMIN_PASSWORD=change_this_password
 WEB_SECRET_KEY=replace_with_a_long_random_secret
-WEB_PORT=5112
+WEB_PORT=5000
 ```
 
 ### 4. 启动服务
@@ -117,13 +117,13 @@ docker compose logs -f web-config
 
 ```yaml
 ports:
-  - "${WEB_PORT:-5112}:5000"
+  - "${WEB_PORT:-5000}:5000"
 ```
 
 默认情况下，Web 配置后台可通过以下地址访问：
 
 ```text
-http://<server-ip>:5112
+http://<server-ip>:5000
 ```
 
 如果 `.env` 中设置了其他 `WEB_PORT`，则以该值为准。
