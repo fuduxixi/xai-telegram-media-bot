@@ -102,6 +102,8 @@ DEFAULT_IMAGE_RATIO = os.getenv("XAI_IMAGE_DEFAULT_RATIO", "1:1").strip() or "1:
 DEFAULT_IMAGE_MODEL = os.getenv("XAI_IMAGE_MODEL", "grok-imagine-image").strip() or "grok-imagine-image"
 DEFAULT_IMAGE_COUNT = int(os.getenv("XAI_IMAGE_DEFAULT_N", "1").strip() or "1")
 MAX_IMAGE_COUNT = int(os.getenv("XAI_IMAGE_MAX_N", "4").strip() or "4")
+DEFAULT_VIDEO_COUNT = int(os.getenv("XAI_VIDEO_DEFAULT_N", "1").strip() or "1")
+MAX_VIDEO_COUNT = int(os.getenv("XAI_VIDEO_MAX_N", "4").strip() or "4")
 VIDEO_AUTO_REWRITE_ON_MODERATION = os.getenv("VIDEO_AUTO_REWRITE_ON_MODERATION", "0").strip().lower() in {"1", "true", "yes", "on"}
 VIDEO_REWRITE_MODE = (os.getenv("VIDEO_REWRITE_MODE", "").strip().lower() or ("mild" if VIDEO_AUTO_REWRITE_ON_MODERATION else "off"))
 if VIDEO_REWRITE_MODE not in {"off", "mild", "strong"}:
@@ -116,6 +118,10 @@ ALLOWED_RESOLUTIONS = {"480p", "720p"}
 
 DEFAULT_IMAGE_COUNT = max(1, min(DEFAULT_IMAGE_COUNT, 4))
 MAX_IMAGE_COUNT = max(1, min(MAX_IMAGE_COUNT, 4))
+DEFAULT_VIDEO_COUNT = max(1, min(DEFAULT_VIDEO_COUNT, 4))
+MAX_VIDEO_COUNT = max(1, min(MAX_VIDEO_COUNT, 4))
+if DEFAULT_VIDEO_COUNT > MAX_VIDEO_COUNT:
+    DEFAULT_VIDEO_COUNT = MAX_VIDEO_COUNT
 if DEFAULT_IMAGE_MODEL not in ALLOWED_IMAGE_MODELS:
     DEFAULT_IMAGE_MODEL = "grok-imagine-image"
 if DEFAULT_IMAGE_RATIO not in ALLOWED_IMAGE_RATIOS:
@@ -140,6 +146,7 @@ class Job:
     cached_image_path: str | None = None
     image_model: str | None = None
     image_count: int | None = None
+    video_count: int | None = None
     preferred_key_index: int | None = None
     progress_message_ids: list[int] = field(default_factory=list)
     rewrite_mode: str = "off"
@@ -174,6 +181,7 @@ def parse_video_command_args(raw_text: str, *, allow_empty_prompt: bool = False)
     duration = DEFAULT_DURATION
     ratio = DEFAULT_RATIO
     resolution = DEFAULT_RESOLUTION
+    count = DEFAULT_VIDEO_COUNT
     rewrite_mode = VIDEO_REWRITE_MODE
     prompt_parts = []
 
@@ -196,6 +204,11 @@ def parse_video_command_args(raw_text: str, *, allow_empty_prompt: bool = False)
             if i >= len(parts):
                 raise ValueError("缺少 resolution 值")
             resolution = parts[i]
+        elif part in ("-n", "--count"):
+            i += 1
+            if i >= len(parts):
+                raise ValueError("缺少 count 值")
+            count = int(parts[i])
         elif part == "--safe-rewrite":
             rewrite_mode = "mild"
         elif part == "--safe-rewrite-mild":
@@ -218,12 +231,15 @@ def parse_video_command_args(raw_text: str, *, allow_empty_prompt: bool = False)
         raise ValueError(f"ratio 仅支持: {', '.join(sorted(ALLOWED_VIDEO_RATIOS))}")
     if resolution not in ALLOWED_RESOLUTIONS:
         raise ValueError(f"resolution 仅支持: {', '.join(sorted(ALLOWED_RESOLUTIONS))}")
+    if count < 1 or count > MAX_VIDEO_COUNT:
+        raise ValueError(f"count 仅支持 1 到 {MAX_VIDEO_COUNT}")
 
     return {
         "prompt": prompt,
         "duration": duration,
         "aspect_ratio": ratio,
         "resolution": resolution,
+        "count": count,
         "rewrite_mode": rewrite_mode,
     }
 
@@ -721,9 +737,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/image4 prompt  （快捷 4 张图）\n"
         "/imagepro prompt  （快捷 Pro 图像模型）\n"
         "/models 查看当前默认图片配置\n"
-        "/video [-d seconds] [-r ratio] [-q resolution] prompt\n"
+        "/video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt\n"
         "/video 也支持回复文字或文本附件发送\n"
-        "/img2video prompt 需回复一张图片发送\n"
+        "/img2video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt，需回复一张图片\n"
         "/me 查看你的 Telegram user id\n"
         "/help 查看帮助"
     )
@@ -736,15 +752,17 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/image4 prompt  （快捷生成 4 张）\n"
         "/imagepro prompt  （快捷使用 Pro 模型）\n"
         "/models 查看当前默认图片配置\n"
-        "/video [-d seconds] [-r ratio] [-q resolution] prompt\n"
+        "/video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt\n"
         "/video 也支持回复文字或文本附件（txt/md/csv/tsv/json/yaml）后发送\n"
-        "/img2video [-d seconds] [-r ratio] [-q resolution] prompt，需回复一张图片\n\n"
+        "/img2video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt，需回复一张图片\n\n"
         "图片比例：auto / 16:9 / 9:16 / 1:1 / 3:2 / 2:3 / 4:3 / 3:4 / 4:5 / 5:4 / 2:1 / 1:2 / 19.5:9 / 9:19.5 / 20:9 / 9:20\n"
         "图片模型：grok-imagine-image / grok-imagine-image-pro\n"
         f"图片数量：1 到 {MAX_IMAGE_COUNT}\n"
         f"当前默认：model={DEFAULT_IMAGE_MODEL}, ratio={DEFAULT_IMAGE_RATIO}, count={DEFAULT_IMAGE_COUNT}\n"
         "视频比例：16:9 / 9:16 / 1:1 / 3:2 / 2:3\n"
         "视频分辨率：480p / 720p\n"
+        f"视频数量：1 到 {MAX_VIDEO_COUNT}\n"
+        f"当前默认视频数量：count={DEFAULT_VIDEO_COUNT}\n"
         f"文本附件大小限制：不超过 {MAX_TEXT_ATTACHMENT_BYTES // 1024}KB\n\n"
         "示例：\n"
         "/image -r 1:1 A cute robot in a retro arcade\n"
@@ -752,10 +770,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/imagepro A luxury perfume bottle on black silk\n"
         "/image -n 4 -m grok-imagine-image-pro A luxury perfume bottle on black silk\n"
         "/models\n"
-        "/video -d 12 -r 9:16 -q 720p A cyberpunk girl walking in neon rain\n"
-        "回复一段分镜文字后发送：/video -d 12 -r 16:9\n"
-        "回复一个 script.md / storyboard.csv 后发送：/video -d 12 -r 16:9\n"
-        "/img2video -d 8 -r 9:16 A cinematic close-up, she blinks and smiles gently"
+        "/video -d 12 -r 9:16 -q 720p -n 2 A cyberpunk girl walking in neon rain\n"
+        "回复一段分镜文字后发送：/video -d 12 -r 16:9 -n 3\n"
+        "回复一个 script.md / storyboard.csv 后发送：/video -d 12 -r 16:9 -n 2\n"
+        "/img2video -d 8 -r 9:16 -n 2 A cinematic close-up, she blinks and smiles gently"
     )
 
 
@@ -874,6 +892,8 @@ async def models(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"default_ratio={DEFAULT_IMAGE_RATIO}\n"
         f"default_count={DEFAULT_IMAGE_COUNT}\n"
         f"max_count={MAX_IMAGE_COUNT}\n"
+        f"default_video_count={DEFAULT_VIDEO_COUNT}\n"
+        f"max_video_count={MAX_VIDEO_COUNT}\n"
         "supported_models=grok-imagine-image, grok-imagine-image-pro"
     )
 
@@ -889,7 +909,7 @@ async def video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     raw_text = message.text.removeprefix("/video").strip()
     if not raw_text and not message.reply_to_message:
         await message.reply_text(
-            "用法：/video [-d seconds] [-r ratio] [-q resolution] 你的提示词\n"
+            "用法：/video [-d seconds] [-r ratio] [-q resolution] [-n count] 你的提示词\n"
             "也支持回复一段文字或一个文本附件（txt/md/csv/tsv/json/yaml）后再发送 /video 参数"
         )
         return
@@ -911,11 +931,12 @@ async def video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 aspect_ratio=params["aspect_ratio"],
                 resolution=params["resolution"],
                 rewrite_mode=params["rewrite_mode"],
+                video_count=params["count"],
             ),
             message,
             (
                 "视频任务已加入队列\n"
-                f"duration={params['duration']}, ratio={params['aspect_ratio']}, resolution={params['resolution']}"
+                f"duration={params['duration']}, ratio={params['aspect_ratio']}, resolution={params['resolution']}, count={params['count']}"
                 + (f"\nprompt_sources={','.join(prompt_sources)}" if prompt_sources else "")
             ),
         )
@@ -935,7 +956,7 @@ async def img2video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not raw_text:
         await message.reply_text(
             "用法：回复一张图片后发送\n"
-            "/img2video [-d seconds] [-r ratio] [-q resolution] 让这张图动起来"
+            "/img2video [-d seconds] [-r ratio] [-q resolution] [-n count] 让这张图动起来"
         )
         return
 
@@ -959,12 +980,13 @@ async def img2video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         temp_job.resolution = params["resolution"]
         temp_job.cached_image_path = cached_image_path
         temp_job.rewrite_mode = params["rewrite_mode"]
+        temp_job.video_count = params["count"]
         await enqueue_job(
             temp_job,
             message,
             (
                 "图生视频任务已加入队列，原图已缓存到本地\n"
-                f"duration={params['duration']}, ratio={params['aspect_ratio']}, resolution={params['resolution']}"
+                f"duration={params['duration']}, ratio={params['aspect_ratio']}, resolution={params['resolution']}, count={params['count']}"
             ),
         )
         cached_image_path = None
@@ -1037,78 +1059,83 @@ async def process_image_job(app: Application, job: Job) -> None:
 
 
 async def process_video_job(app: Application, job: Job) -> None:
-    output_video_path = None
+    output_video_paths: list[str] = []
     try:
+        total_count = job.video_count or DEFAULT_VIDEO_COUNT
         await send_progress_message(
             app,
             job,
             "任务开始执行。\n"
-            f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}",
+            f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}, count={total_count}",
         )
 
-        effective_prompt = job.prompt
-        try:
-            request_id, preferred_key_index = submit_video(
-                prompt=effective_prompt,
-                duration=job.duration or DEFAULT_DURATION,
-                aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
-                resolution=job.resolution or DEFAULT_RESOLUTION,
-            )
+        for current_index in range(1, total_count + 1):
+            effective_prompt = job.prompt
+            try:
+                request_id, preferred_key_index = submit_video(
+                    prompt=effective_prompt,
+                    duration=job.duration or DEFAULT_DURATION,
+                    aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
+                    resolution=job.resolution or DEFAULT_RESOLUTION,
+                )
 
-            await send_progress_message(app, job, f"任务已提交\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
+                await send_progress_message(app, job, f"任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
 
-            result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
-        except RuntimeError as e:
-            if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
-                effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
-                await send_progress_message(app, job, f"检测到审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}）")
-                try:
-                    request_id, preferred_key_index = submit_video(
-                        prompt=effective_prompt,
-                        duration=job.duration or DEFAULT_DURATION,
-                        aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
-                        resolution=job.resolution or DEFAULT_RESOLUTION,
-                    )
-                    await send_progress_message(app, job, f"重试任务已提交\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
-                    result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
-                except RuntimeError as retry_error:
-                    if "content moderation" in str(retry_error).lower():
-                        raise RuntimeError("视频生成连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
+            except RuntimeError as e:
+                if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
+                    effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
+                    await send_progress_message(app, job, f"检测到审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}，{current_index}/{total_count}）")
+                    try:
+                        request_id, preferred_key_index = submit_video(
+                            prompt=effective_prompt,
+                            duration=job.duration or DEFAULT_DURATION,
+                            aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
+                            resolution=job.resolution or DEFAULT_RESOLUTION,
+                        )
+                        await send_progress_message(app, job, f"重试任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
+                        result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
+                    except RuntimeError as retry_error:
+                        if "content moderation" in str(retry_error).lower():
+                            raise RuntimeError("视频生成连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                        raise
+                else:
                     raise
-            else:
-                raise
-        video_info = result.get("video", {})
-        video_url = video_info.get("url")
-        if not video_url:
-            raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
+            video_info = result.get("video", {})
+            video_url = video_info.get("url")
+            if not video_url:
+                raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
 
-        await send_progress_message(app, job, "视频已生成，开始下载并回传 Telegram...")
-        output_video_path = download_binary(video_url, ".mp4")
+            await send_progress_message(app, job, f"视频已生成，开始下载并回传 Telegram...（{current_index}/{total_count}）")
+            output_video_path = download_binary(video_url, f"_{current_index}.mp4")
+            output_video_paths.append(output_video_path)
 
-        with open(output_video_path, "rb") as f:
-            await app.bot.send_video(
-                chat_id=job.chat_id,
-                video=f,
-                caption=(
-                    "视频生成完成\n"
-                    f"request_id={request_id}\n"
-                    f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
-                ),
-                read_timeout=300,
-                write_timeout=300,
-            )
+            with open(output_video_path, "rb") as f:
+                await app.bot.send_video(
+                    chat_id=job.chat_id,
+                    video=f,
+                    caption=(
+                        "视频生成完成\n"
+                        f"progress={current_index}/{total_count}\n"
+                        f"request_id={request_id}\n"
+                        f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
+                    ),
+                    read_timeout=300,
+                    write_timeout=300,
+                )
         await cleanup_progress_messages(app, job)
     finally:
-        cleanup_paths(output_video_path)
+        cleanup_paths(*output_video_paths)
 
 
 async def process_img2video_job(app: Application, job: Job) -> None:
     input_image_path = job.cached_image_path
-    output_video_path = None
+    output_video_paths: list[str] = []
     try:
         if not input_image_path or not Path(input_image_path).exists():
             raise RuntimeError("本地图生视频缓存图不存在，无法执行任务")
 
+        total_count = job.video_count or DEFAULT_VIDEO_COUNT
         await send_progress_message(app, job, "图生视频任务开始执行，使用本地缓存原图...")
         image_data_url = file_to_data_url(input_image_path)
 
@@ -1116,65 +1143,68 @@ async def process_img2video_job(app: Application, job: Job) -> None:
             app,
             job,
             "图片已就绪，开始提交图生视频任务。\n"
-            f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}",
+            f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}, count={total_count}",
         )
 
-        effective_prompt = job.prompt
-        try:
-            request_id, preferred_key_index = submit_image_to_video(
-                prompt=effective_prompt,
-                image_data_url=image_data_url,
-                duration=job.duration or DEFAULT_DURATION,
-                aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
-                resolution=job.resolution or DEFAULT_RESOLUTION,
-            )
+        for current_index in range(1, total_count + 1):
+            effective_prompt = job.prompt
+            try:
+                request_id, preferred_key_index = submit_image_to_video(
+                    prompt=effective_prompt,
+                    image_data_url=image_data_url,
+                    duration=job.duration or DEFAULT_DURATION,
+                    aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
+                    resolution=job.resolution or DEFAULT_RESOLUTION,
+                )
 
-            await send_progress_message(app, job, f"任务已提交\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
+                await send_progress_message(app, job, f"任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
 
-            result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
-        except RuntimeError as e:
-            if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
-                effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
-                await send_progress_message(app, job, f"检测到审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}）")
-                try:
-                    request_id, preferred_key_index = submit_image_to_video(
-                        prompt=effective_prompt,
-                        image_data_url=image_data_url,
-                        duration=job.duration or DEFAULT_DURATION,
-                        aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
-                        resolution=job.resolution or DEFAULT_RESOLUTION,
-                    )
-                    await send_progress_message(app, job, f"重试任务已提交\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
-                    result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
-                except RuntimeError as retry_error:
-                    if "content moderation" in str(retry_error).lower():
-                        raise RuntimeError("图生视频连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
+            except RuntimeError as e:
+                if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
+                    effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
+                    await send_progress_message(app, job, f"检测到审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}，{current_index}/{total_count}）")
+                    try:
+                        request_id, preferred_key_index = submit_image_to_video(
+                            prompt=effective_prompt,
+                            image_data_url=image_data_url,
+                            duration=job.duration or DEFAULT_DURATION,
+                            aspect_ratio=job.aspect_ratio or DEFAULT_RATIO,
+                            resolution=job.resolution or DEFAULT_RESOLUTION,
+                        )
+                        await send_progress_message(app, job, f"重试任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
+                        result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
+                    except RuntimeError as retry_error:
+                        if "content moderation" in str(retry_error).lower():
+                            raise RuntimeError("图生视频连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                        raise
+                else:
                     raise
-            else:
-                raise
-        video_info = result.get("video", {})
-        video_url = video_info.get("url")
-        if not video_url:
-            raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
+            video_info = result.get("video", {})
+            video_url = video_info.get("url")
+            if not video_url:
+                raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
 
-        await send_progress_message(app, job, "视频已生成，开始下载并回传 Telegram...")
-        output_video_path = download_binary(video_url, ".mp4")
+            await send_progress_message(app, job, f"视频已生成，开始下载并回传 Telegram...（{current_index}/{total_count}）")
+            output_video_path = download_binary(video_url, f"_{current_index}.mp4")
+            output_video_paths.append(output_video_path)
 
-        with open(output_video_path, "rb") as f:
-            await app.bot.send_video(
-                chat_id=job.chat_id,
-                video=f,
-                caption=(
-                    "图生视频完成\n"
-                    f"request_id={request_id}\n"
-                    f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
-                ),
-                read_timeout=300,
-                write_timeout=300,
-            )
+            with open(output_video_path, "rb") as f:
+                await app.bot.send_video(
+                    chat_id=job.chat_id,
+                    video=f,
+                    caption=(
+                        "图生视频完成\n"
+                        f"progress={current_index}/{total_count}\n"
+                        f"request_id={request_id}\n"
+                        f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
+                    ),
+                    read_timeout=300,
+                    write_timeout=300,
+                )
         await cleanup_progress_messages(app, job)
     finally:
-        cleanup_paths(input_image_path, output_video_path)
+        cleanup_paths(input_image_path, *output_video_paths)
 
 
 async def job_worker(app: Application) -> None:
@@ -1236,10 +1266,11 @@ async def post_init(app: Application) -> None:
         logger.warning("bot started, but getMe failed during startup: %s", e)
 
     logger.info(
-        "bot started | mode=polling | image_model=%s | image_ratio=%s | image_count=%s | video_rewrite_mode=%s | allowed_users=%s",
+        "bot started | mode=polling | image_model=%s | image_ratio=%s | image_count=%s | video_count=%s | video_rewrite_mode=%s | allowed_users=%s",
         DEFAULT_IMAGE_MODEL,
         DEFAULT_IMAGE_RATIO,
         DEFAULT_IMAGE_COUNT,
+        DEFAULT_VIDEO_COUNT,
         VIDEO_REWRITE_MODE,
         "all" if not ALLOWED_USER_IDS else ",".join(str(x) for x in sorted(ALLOWED_USER_IDS)),
     )
@@ -1258,6 +1289,7 @@ async def post_init(app: Application) -> None:
             image_model=DEFAULT_IMAGE_MODEL,
             image_ratio=DEFAULT_IMAGE_RATIO,
             image_count=DEFAULT_IMAGE_COUNT,
+            video_count=DEFAULT_VIDEO_COUNT,
             video_rewrite_mode=VIDEO_REWRITE_MODE,
             queue_size=0,
         )
@@ -1267,6 +1299,7 @@ async def post_init(app: Application) -> None:
             image_model=DEFAULT_IMAGE_MODEL,
             image_ratio=DEFAULT_IMAGE_RATIO,
             image_count=DEFAULT_IMAGE_COUNT,
+            video_count=DEFAULT_VIDEO_COUNT,
             video_rewrite_mode=VIDEO_REWRITE_MODE,
             queue_size=0,
         )

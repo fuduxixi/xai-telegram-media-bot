@@ -1,6 +1,6 @@
 # xAI Telegram Media Bot
 
-基于 Telegram Bot API 与 xAI 官方 API 的媒体生成机器人，支持图片生成、视频生成、图生视频，以及基于 Web 配置后台的 Docker / Docker Compose 部署。
+基于 Telegram Bot API 与 xAI 官方 API 的媒体生成机器人，支持图片生成、视频生成、图生视频、批量多视频生成，以及基于 Web 配置后台的 Docker / Docker Compose 部署。
 
 作者：by fuduxixi
 
@@ -9,6 +9,7 @@
 - 文生图
 - 文生视频
 - 图生视频
+- 支持同提示词批量生成多条视频 / 图生视频
 - 支持 `grok-imagine-image` 与 `grok-imagine-image-pro`
 - 支持多 `XAI_API_KEYS` 轮询
 - 视频审核拒绝后支持自动改写并重试
@@ -111,6 +112,22 @@ docker compose logs -f telegram-bot
 docker compose logs -f web-config
 ```
 
+## 命令速览
+
+```text
+/image [-r ratio] [-n count] [-m model] prompt
+/image4 prompt
+/imagepro prompt
+/video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt
+/img2video [-d seconds] [-r ratio] [-q resolution] [-n count] prompt
+```
+
+说明：
+
+- `/video` 和 `/img2video` 现在支持 `-n/--count`，会按同一提示词顺序生成多条视频。
+- 当前代码默认最大支持 `4` 条视频，可通过 `.env` 中的 `XAI_VIDEO_MAX_N` 调整，脚本内部仍会强制限制在 `1~4`。
+- `count > 1` 时，机器人会逐条提交到 xAI 视频接口并逐条回传 Telegram，不依赖上游单请求批量返回。
+
 ## 访问 Web 配置后台
 
 `docker-compose.yml` 默认端口映射为：
@@ -181,6 +198,14 @@ http://<server-ip>:5000
 
 - `XAI_IMAGE_MAX_N`
   - 最大图片生成数量。
+
+### 视频生成
+
+- `XAI_VIDEO_DEFAULT_N`
+  - 默认视频生成数量。
+
+- `XAI_VIDEO_MAX_N`
+  - 最大视频生成数量。
 
 ### 视频改写策略
 
