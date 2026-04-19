@@ -189,6 +189,7 @@ http://<server-ip>:5000
 
 - `TG_ALLOWED_USER_IDS`
   - 允许使用机器人的 Telegram 用户 ID，多个用英文逗号分隔。
+  - 配置后，未在白名单内的用户将无法使用 `/start`、`/help`、`/models`、`/me`、图片生成、视频生成等全部机器人命令。
 
 ### xAI API
 

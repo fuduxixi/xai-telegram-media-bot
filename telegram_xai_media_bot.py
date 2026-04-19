@@ -798,6 +798,11 @@ def clear_reload_signal() -> None:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not is_user_allowed(user.id):
+        await update.message.reply_text("你没有使用权限")
+        return
+
     await update.message.reply_text(
         "欢迎使用 xAI 媒体生成机器人\n\n"
         "常用命令\n"
@@ -813,6 +818,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not is_user_allowed(user.id):
+        await update.message.reply_text("你没有使用权限")
+        return
+
     await update.message.reply_text(
         "使用说明\n\n"
         "图片命令\n"
@@ -848,10 +858,14 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
+    if not is_user_allowed(user.id):
+        await update.message.reply_text("你没有使用权限")
+        return
+
     if user.username:
-        await update.message.reply_text(f"user_id: {user.id}\nusername: @{user.username}")
+        await update.message.reply_text(f"你的用户信息\n用户 ID：{user.id}\n用户名：@{user.username}")
     else:
-        await update.message.reply_text(f"user_id: {user.id}")
+        await update.message.reply_text(f"你的用户信息\n用户 ID：{user.id}")
 
 
 def get_queue_size() -> int:
@@ -955,6 +969,11 @@ async def imagepro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def models(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not is_user_allowed(user.id):
+        await update.message.reply_text("你没有使用权限")
+        return
+
     await update.message.reply_text(
         "当前配置\n\n"
         "图片设置\n"
