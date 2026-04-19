@@ -534,11 +534,23 @@ def render_logs_page(log_content, level='all'):
         <div class="glass rounded-3xl p-8 border border-white/10">
             <pre id="log-content" class="text-sm text-slate-300 bg-slate-950 p-6 rounded-2xl overflow-auto max-h-[75vh] leading-relaxed">{log_content}</pre>
         </div>
-        <div class="text-center text-slate-500 text-xs mt-8">当前筛选：{level} • 仅显示最近 300 行 • 自动刷新已开启</div>
+        <div id="logs-status" class="text-center text-slate-500 text-xs mt-8">当前筛选：{level} • 仅显示最近 300 行 • 自动刷新状态加载中</div>
     </div>
     <script>
-        let autoRefresh = true;
         const currentLevel = '{level}';
+        const autoRefreshStorageKey = 'xai_bot_logs_auto_refresh';
+        let autoRefresh = localStorage.getItem(autoRefreshStorageKey) !== 'off';
+
+        function updateAutoRefreshUi() {{
+            const btn = document.getElementById('auto-btn');
+            const status = document.getElementById('logs-status');
+            btn.textContent = '自动刷新: ' + (autoRefresh ? '开' : '关');
+            btn.className = autoRefresh
+                ? 'px-6 py-3 bg-emerald-500 hover:bg-emerald-600 rounded-2xl transition'
+                : 'px-6 py-3 bg-slate-600 hover:bg-slate-500 rounded-2xl transition';
+            status.textContent = '当前筛选：{level} • 仅显示最近 300 行 • 自动刷新已' + (autoRefresh ? '开启' : '关闭');
+        }}
+
         setInterval(() => {{
             if (autoRefresh) refreshLogs();
         }}, 3000);
@@ -553,12 +565,15 @@ def render_logs_page(log_content, level='all'):
 
         function toggleAutoRefresh() {{
             autoRefresh = !autoRefresh;
-            const btn = document.getElementById('auto-btn');
-            btn.textContent = '自动刷新: ' + (autoRefresh ? '开' : '关');
+            localStorage.setItem(autoRefreshStorageKey, autoRefresh ? 'on' : 'off');
+            updateAutoRefreshUi();
             if (autoRefresh) refreshLogs();
         }}
 
-        window.onload = () => refreshLogs();
+        window.onload = () => {{
+            updateAutoRefreshUi();
+            if (autoRefresh) refreshLogs();
+        }};
     </script>
 </body>
 </html>
