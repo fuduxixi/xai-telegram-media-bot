@@ -517,15 +517,19 @@ def render_logs_page(log_content, level='all'):
 </head>
 <body class="min-h-screen text-white p-8">
     <div class="max-w-6xl mx-auto">
-        <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
-            <h1 class="text-4xl font-bold title">实时日志</h1>
-            <div class="flex flex-wrap gap-3">
-                <a href="/" class="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl transition">← 返回配置</a>
-                <button onclick="toggleAutoRefresh()" id="auto-btn" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 rounded-2xl transition">自动刷新: 开</button>
-                <a href="/logs?level=all" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='all' else 'bg-white/10 hover:bg-white/20'}">全部</a>
-                <a href="/logs?level=progress" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='progress' else 'bg-white/10 hover:bg-white/20'}">只看 progress</a>
-                <a href="/logs?level=error" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='error' else 'bg-white/10 hover:bg-white/20'}">只看 error</a>
-                <a href="/clear-logs" onclick="return confirm('确定要清空日志吗？')" class="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-2xl transition">清空日志</a>
+        <div class="sticky top-4 z-40 mb-8">
+            <div class="glass rounded-3xl px-6 py-5 border border-white/10 shadow-2xl shadow-slate-950/30">
+                <div class="flex flex-wrap justify-between items-center gap-4">
+                    <h1 class="text-4xl font-bold title">实时日志</h1>
+                    <div class="flex flex-wrap gap-3">
+                        <a href="/" class="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-2xl transition">← 返回配置</a>
+                        <button onclick="toggleAutoRefresh()" id="auto-btn" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 rounded-2xl transition">自动刷新: 开</button>
+                        <a href="/logs?level=all" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='all' else 'bg-white/10 hover:bg-white/20'}">全部</a>
+                        <a href="/logs?level=progress" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='progress' else 'bg-white/10 hover:bg-white/20'}">只看 progress</a>
+                        <a href="/logs?level=error" class="px-5 py-3 rounded-2xl transition {'bg-blue-600 text-white' if level=='error' else 'bg-white/10 hover:bg-white/20'}">只看 error</a>
+                        <a href="/clear-logs" onclick="return confirm('确定要清空日志吗？')" class="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-2xl transition">清空日志</a>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="glass rounded-3xl p-8 border border-white/10">
@@ -552,11 +556,17 @@ def render_logs_page(log_content, level='all'):
             if (autoRefresh) refreshLogs();
         }}, 3000);
 
+        function scrollLogsToBottom() {{
+            const logEl = document.getElementById('log-content');
+            logEl.scrollTop = logEl.scrollHeight;
+        }}
+
         async function refreshLogs() {{
             try {{
                 const resp = await fetch('/logs/raw?level=' + encodeURIComponent(currentLevel));
                 const data = await resp.json();
                 document.getElementById('log-content').textContent = data.logs || '暂无日志';
+                scrollLogsToBottom();
             }} catch (e) {{}}
         }}
 
@@ -569,6 +579,7 @@ def render_logs_page(log_content, level='all'):
 
         window.onload = () => {{
             updateAutoRefreshUi();
+            scrollLogsToBottom();
             if (autoRefresh) refreshLogs();
         }};
     </script>
