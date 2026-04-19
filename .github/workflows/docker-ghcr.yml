@@ -19,8 +19,10 @@ jobs:
         include:
           - target: bot
             image: ghcr.io/fuduxixi/xai-telegram-media-bot
+            package: xai-telegram-media-bot
           - target: web
             image: ghcr.io/fuduxixi/xai-telegram-media-web
+            package: xai-telegram-media-web
 
     steps:
       - name: Checkout repository
@@ -62,3 +64,11 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+      - name: Prune old GHCR versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 3
+          delete-only-untagged-versions: false
