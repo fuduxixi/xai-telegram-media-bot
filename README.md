@@ -110,6 +110,7 @@ docker compose up -d
 - `pull_policy: always` 已开启，执行 `docker compose up -d` 时会优先检查远端最新镜像。
 - 默认使用 `:main` 标签，避免刚更新 `:latest` 时遇到短暂的同步不一致。
 - 工作流会同时发布 `latest`、`main` 和 `sha-<commit>` 标签。
+- GHCR 清理策略只删除无 tag 的中间版本，不会主动删除带标签的正式镜像版本。
 
 ### 5. 查看运行状态
 
