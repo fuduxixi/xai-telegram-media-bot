@@ -20,11 +20,11 @@ jobs:
       matrix:
         include:
           - target: bot
-            image: ghcr.io/fuduxixi/xai-telegram-media-bot
-            package: xai-telegram-media-bot
+            image: ghcr.io/fuduxixi/xai-telegram-bot
+            package: xai-telegram-bot
           - target: web
-            image: ghcr.io/fuduxixi/xai-telegram-media-web
-            package: xai-telegram-media-web
+            image: ghcr.io/fuduxixi/xai-telegram-web
+            package: xai-telegram-web
 
     steps:
       - name: Checkout repository
