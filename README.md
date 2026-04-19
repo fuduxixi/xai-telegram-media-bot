@@ -12,7 +12,7 @@
 - 支持同提示词批量生成多条视频 / 图生视频
 - 支持 `grok-imagine-image` 与 `grok-imagine-image-pro`
 - 支持多 `XAI_API_KEYS` 轮询
-- 视频审核拒绝后支持自动改写并重试
+- 图片 / 视频 / 图生视频在审核拒绝后均支持自动改写并重试
 - 白名单用户控制
 - FIFO 顺序任务队列
 - Web 配置后台
@@ -208,13 +208,13 @@ http://<server-ip>:5000
 - `XAI_VIDEO_MAX_N`
   - 最大视频生成数量。
 
-### 视频改写策略
+### 审核改写策略
 
 - `VIDEO_AUTO_REWRITE_ON_MODERATION`
   - 兼容旧开关：`0` 或 `1`。
 
 - `VIDEO_REWRITE_MODE`
-  - 视频审核拒绝后的自动改写模式。
+  - 图片、视频、图生视频在审核拒绝后的自动改写模式。
   - 可选值：`off`、`mild`、`strong`
 
 ### 日志与状态文件

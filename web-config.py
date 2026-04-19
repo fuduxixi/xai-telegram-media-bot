@@ -405,6 +405,9 @@ CONFIG_HTML = """
                         <input type="number" name="XAI_IMAGE_DEFAULT_N" value="{{ env.get('XAI_IMAGE_DEFAULT_N','1') }}" min="1" max="4" class="input w-full rounded-2xl px-6 py-5 text-lg">
                     </div>
                 </div>
+                <div class="mt-4 text-sm text-slate-400 leading-7">
+                    <div>如果图片生成被审核拦截，机器人也会按当前审核改写模式自动改写提示词后重试一次。</div>
+                </div>
             </div>
 
             <div class="glass rounded-3xl p-8">

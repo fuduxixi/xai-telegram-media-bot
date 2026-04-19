@@ -1008,7 +1008,22 @@ async def process_image_job(app: Application, job: Job) -> None:
             job,
             f"开始生成图片，ratio={ratio}, count={count}, model={model}",
         )
-        image_urls = submit_image(job.prompt, ratio, model, count)
+
+        effective_prompt = job.prompt
+        try:
+            image_urls = submit_image(effective_prompt, ratio, model, count)
+        except RuntimeError as e:
+            if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
+                effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
+                await send_progress_message(app, job, f"检测到图片审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}）")
+                try:
+                    image_urls = submit_image(effective_prompt, ratio, model, count)
+                except RuntimeError as retry_error:
+                    if "content moderation" in str(retry_error).lower():
+                        raise RuntimeError("图片生成连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                    raise
+            else:
+                raise
 
         for index, image_url in enumerate(image_urls, 1):
             image_path = download_binary(image_url, f"_{index}.png")
@@ -1176,7 +1191,7 @@ async def process_img2video_job(app: Application, job: Job) -> None:
                         result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
                     except RuntimeError as retry_error:
                         if "content moderation" in str(retry_error).lower():
-                            raise RuntimeError("图生视频连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
+                            raise RuntimeError("图生视频连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试；如果仍失败，一个可能原因是原图本身触发了审核。") from retry_error
                         raise
                 else:
                     raise
