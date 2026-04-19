@@ -69,10 +69,3 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
-      - name: Prune old GHCR versions
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: ${{ matrix.package }}
-          package-type: container
-          min-versions-to-keep: 3
-          delete-only-untagged-versions: true
