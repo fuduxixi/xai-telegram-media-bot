@@ -1138,7 +1138,12 @@ async def process_image_job(app: Application, job: Job) -> None:
             )
 
         if failed_items:
-            await app.bot.send_message(job.chat_id, "部分图片生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
+            await app.bot.send_message(
+                job.chat_id,
+                f"本次图片请求共 {count} 张，成功 {len(image_paths)} 张，失败 {len(failed_items)} 张。\n"
+                "已先发送成功结果，失败详情：\n"
+                + "\n".join(failed_items[:10]),
+            )
         await cleanup_progress_messages(app, job)
     finally:
         for handle in file_handles:
@@ -1223,7 +1228,12 @@ async def process_video_job(app: Application, job: Job) -> None:
         if success_count == 0:
             raise RuntimeError("本次视频任务全部失败，没有可发送的结果。")
         if failed_items:
-            await app.bot.send_message(job.chat_id, "部分视频生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
+            await app.bot.send_message(
+                job.chat_id,
+                f"本次视频请求共 {total_count} 个，成功 {success_count} 个，失败 {len(failed_items)} 个。\n"
+                "已先发送成功结果，失败详情：\n"
+                + "\n".join(failed_items[:10]),
+            )
         await cleanup_progress_messages(app, job)
     finally:
         cleanup_paths(*output_video_paths)
@@ -1312,7 +1322,12 @@ async def process_img2video_job(app: Application, job: Job) -> None:
         if success_count == 0:
             raise RuntimeError("本次图生视频任务全部失败，没有可发送的结果。")
         if failed_items:
-            await app.bot.send_message(job.chat_id, "部分图生视频生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
+            await app.bot.send_message(
+                job.chat_id,
+                f"本次图生视频请求共 {total_count} 个，成功 {success_count} 个，失败 {len(failed_items)} 个。\n"
+                "已先发送成功结果，失败详情：\n"
+                + "\n".join(failed_items[:10]),
+            )
         await cleanup_progress_messages(app, job)
     finally:
         cleanup_paths(input_image_path, *output_video_paths)
