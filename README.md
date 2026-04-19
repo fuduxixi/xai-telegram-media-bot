@@ -108,6 +108,8 @@ docker compose up -d
 - 不再需要本地 `build`。
 - 临时文件现在会写入项目目录下的 `./tmp`，不再直接占用宿主机全局 `/tmp`。
 - `pull_policy: always` 已开启，执行 `docker compose up -d` 时会优先检查远端最新镜像。
+- 默认使用 `:main` 标签，避免刚更新 `:latest` 时遇到短暂的同步不一致。
+- 工作流会同时发布 `latest`、`main` 和 `sha-<commit>` 标签。
 
 ### 5. 查看运行状态
 
