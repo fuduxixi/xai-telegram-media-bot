@@ -57,6 +57,7 @@ xai_telegram_media_bot/
 
 - `./logs`
 - `./data`
+- `./tmp`
 
 ## 环境要求
 
@@ -105,6 +106,8 @@ docker compose up -d
 
 - `docker-compose.yml` 默认直接使用 GitHub Actions 已发布到 GHCR 的镜像。
 - 不再需要本地 `build`。
+- 临时文件现在会写入项目目录下的 `./tmp`，不再直接占用宿主机全局 `/tmp`。
+- `pull_policy: always` 已开启，执行 `docker compose up -d` 时会优先检查远端最新镜像。
 
 ### 5. 查看运行状态
 
