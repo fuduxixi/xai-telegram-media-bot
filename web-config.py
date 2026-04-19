@@ -316,7 +316,7 @@ CONFIG_HTML = """
                     <div class="text-lg font-medium">{{ status.get('queue_size', '-') }}</div>
                 </div>
                 <div class="bg-slate-900/50 rounded-2xl p-5">
-                    <div class="text-slate-400 mb-1">默认视频数量</div>
+                    <div class="text-slate-400 mb-1">默认视频/图生视频数量</div>
                     <div class="text-lg font-medium">{{ status.get('video_count', env.get('XAI_VIDEO_DEFAULT_N', '1')) }}</div>
                 </div>
                 <div class="bg-slate-900/50 rounded-2xl p-5 md:col-span-2">
@@ -410,16 +410,16 @@ CONFIG_HTML = """
             <div class="glass rounded-3xl p-8">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="text-3xl">🎥</div>
-                    <h2 class="text-2xl font-semibold">视频生成设置</h2>
+                    <h2 class="text-2xl font-semibold">视频 / 图生视频设置</h2>
                 </div>
                 <div class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm text-slate-400 mb-2 font-medium">默认视频数量 (1-4)</label>
+                            <label class="block text-sm text-slate-400 mb-2 font-medium">默认生成数量（文生视频 / 图生视频，1-4）</label>
                             <input type="number" name="XAI_VIDEO_DEFAULT_N" value="{{ env.get('XAI_VIDEO_DEFAULT_N','1') }}" min="1" max="4" class="input w-full rounded-2xl px-6 py-5 text-lg">
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-400 mb-2 font-medium">最大视频数量 (1-4)</label>
+                            <label class="block text-sm text-slate-400 mb-2 font-medium">最大生成数量（文生视频 / 图生视频，1-4）</label>
                             <input type="number" name="XAI_VIDEO_MAX_N" value="{{ env.get('XAI_VIDEO_MAX_N','4') }}" min="1" max="4" class="input w-full rounded-2xl px-6 py-5 text-lg">
                         </div>
                     </div>
@@ -432,7 +432,9 @@ CONFIG_HTML = """
                         </select>
                     </div>
                     <div class="text-sm text-slate-400 leading-7">
+                        <div>这组数量配置同时作用于 <code>/video</code> 和 <code>/img2video</code>。</div>
                         <div>命令行也支持单次覆盖：</div>
+                        <div><code>/video -n 3 ...</code> / <code>/img2video -n 2 ...</code></div>
                         <div><code>--safe-rewrite</code> / <code>--safe-rewrite-mild</code> / <code>--safe-rewrite-strong</code> / <code>--no-safe-rewrite</code></div>
                     </div>
                 </div>

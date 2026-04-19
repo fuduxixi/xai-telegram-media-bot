@@ -124,7 +124,8 @@ docker compose logs -f web-config
 
 说明：
 
-- `/video` 和 `/img2video` 现在支持 `-n/--count`，会按同一提示词顺序生成多条视频。
+- `/video` 和 `/img2video` 现在都支持 `-n/--count`，会按同一提示词顺序生成多条视频。
+- Web 配置里的 `XAI_VIDEO_DEFAULT_N` / `XAI_VIDEO_MAX_N` 同时作用于文生视频和图生视频。
 - 当前代码默认最大支持 `4` 条视频，可通过 `.env` 中的 `XAI_VIDEO_MAX_N` 调整，脚本内部仍会强制限制在 `1~4`。
 - `count > 1` 时，机器人会逐条提交到 xAI 视频接口并逐条回传 Telegram，不依赖上游单请求批量返回。
 
