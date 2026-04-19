@@ -316,6 +316,10 @@ CONFIG_HTML = """
                     <div class="text-lg font-medium">{{ status.get('queue_size', '-') }}</div>
                 </div>
                 <div class="bg-slate-900/50 rounded-2xl p-5">
+                    <div class="text-slate-400 mb-1">默认视频数量</div>
+                    <div class="text-lg font-medium">{{ status.get('video_count', env.get('XAI_VIDEO_DEFAULT_N', '1')) }}</div>
+                </div>
+                <div class="bg-slate-900/50 rounded-2xl p-5 md:col-span-2">
                     <div class="text-slate-400 mb-1">最近结果</div>
                     <div class="text-lg font-medium break-all">{{ status.get('last_result', '-') }}</div>
                 </div>
@@ -408,7 +412,17 @@ CONFIG_HTML = """
                     <div class="text-3xl">🎥</div>
                     <h2 class="text-2xl font-semibold">视频生成设置</h2>
                 </div>
-                <div class="space-y-4">
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2 font-medium">默认视频数量 (1-4)</label>
+                            <input type="number" name="XAI_VIDEO_DEFAULT_N" value="{{ env.get('XAI_VIDEO_DEFAULT_N','1') }}" min="1" max="4" class="input w-full rounded-2xl px-6 py-5 text-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2 font-medium">最大视频数量 (1-4)</label>
+                            <input type="number" name="XAI_VIDEO_MAX_N" value="{{ env.get('XAI_VIDEO_MAX_N','4') }}" min="1" max="4" class="input w-full rounded-2xl px-6 py-5 text-lg">
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-sm text-slate-400 mb-2 font-medium">审核自动改写模式</label>
                         <select name="VIDEO_REWRITE_MODE" class="input w-full rounded-2xl px-6 py-5 text-lg">
@@ -600,6 +614,8 @@ def config():
             'XAI_IMAGE_MODEL': request.form.get('XAI_IMAGE_MODEL', '').strip(),
             'XAI_IMAGE_DEFAULT_RATIO': request.form.get('XAI_IMAGE_DEFAULT_RATIO', '').strip(),
             'XAI_IMAGE_DEFAULT_N': request.form.get('XAI_IMAGE_DEFAULT_N', '').strip(),
+            'XAI_VIDEO_DEFAULT_N': request.form.get('XAI_VIDEO_DEFAULT_N', '').strip(),
+            'XAI_VIDEO_MAX_N': request.form.get('XAI_VIDEO_MAX_N', '').strip(),
             'VIDEO_REWRITE_MODE': rewrite_mode,
             'VIDEO_AUTO_REWRITE_ON_MODERATION': '1' if rewrite_mode != 'off' else '0',
         }
