@@ -1065,6 +1065,7 @@ async def img2video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def process_image_job(app: Application, job: Job) -> None:
     image_paths: list[str] = []
     file_handles = []
+    failed_items: list[str] = []
     try:
         ratio = job.aspect_ratio or DEFAULT_IMAGE_RATIO
         model = job.image_model or DEFAULT_IMAGE_MODEL
@@ -1076,29 +1077,36 @@ async def process_image_job(app: Application, job: Job) -> None:
             f"开始生成图片，ratio={ratio}, count={count}, model={model}",
         )
 
-        effective_prompt = job.prompt
-        try:
-            image_urls = submit_image(effective_prompt, ratio, model, count)
-        except RuntimeError as e:
-            if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
-                effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
-                await send_progress_message(app, job, f"检测到图片审核拒绝，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}）")
-                try:
-                    image_urls = submit_image(effective_prompt, ratio, model, count)
-                except RuntimeError as retry_error:
-                    if "content moderation" in str(retry_error).lower():
-                        raise RuntimeError("图片生成连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
-                    raise
-            else:
-                raise
+        for current_index in range(1, count + 1):
+            effective_prompt = job.prompt
+            try:
+                image_urls = submit_image(effective_prompt, ratio, model, 1)
+            except RuntimeError as e:
+                if job.rewrite_mode != "off" and "content moderation" in str(e).lower():
+                    effective_prompt = rewrite_prompt_for_moderation(job.prompt, job.rewrite_mode)
+                    await send_progress_message(app, job, f"第 {current_index}/{count} 张图片触发审核，正在自动改写为更安全的提示词后重试一次...（mode={job.rewrite_mode}）")
+                    try:
+                        image_urls = submit_image(effective_prompt, ratio, model, 1)
+                    except RuntimeError as retry_error:
+                        failed_items.append(f"第 {current_index} 张失败：{normalize_exception_message(retry_error, job_kind='image')}")
+                        continue
+                else:
+                    failed_items.append(f"第 {current_index} 张失败：{normalize_exception_message(e, job_kind='image')}")
+                    continue
 
-        for index, image_url in enumerate(image_urls, 1):
-            image_path = download_binary(image_url, f"_{index}.png")
+            if not image_urls:
+                failed_items.append(f"第 {current_index} 张失败：图片生成失败：xAI 没有返回可用图片地址，请稍后重试。")
+                continue
+
+            image_path = download_binary(image_urls[0], f"_{current_index}.png")
             image_paths.append(image_path)
+
+        if not image_paths:
+            raise RuntimeError("本次图片任务全部失败，没有可发送的结果。")
 
         caption = (
             "图片生成完成\n"
-            f"ratio={ratio}, count={len(image_paths)}, model={model}"
+            f"success={len(image_paths)}/{count}, ratio={ratio}, model={model}"
         )
 
         if len(image_paths) == 1:
@@ -1110,26 +1118,27 @@ async def process_image_job(app: Application, job: Job) -> None:
                     read_timeout=180,
                     write_timeout=180,
                 )
-            await cleanup_progress_messages(app, job)
-            return
-
-        media = []
-        for index, path in enumerate(image_paths):
-            handle = open(path, "rb")
-            file_handles.append(handle)
-            media.append(
-                InputMediaPhoto(
-                    media=handle,
-                    caption=caption if index == 0 else None,
+        else:
+            media = []
+            for index, path in enumerate(image_paths):
+                handle = open(path, "rb")
+                file_handles.append(handle)
+                media.append(
+                    InputMediaPhoto(
+                        media=handle,
+                        caption=caption if index == 0 else None,
+                    )
                 )
+
+            await app.bot.send_media_group(
+                chat_id=job.chat_id,
+                media=media,
+                read_timeout=180,
+                write_timeout=180,
             )
 
-        await app.bot.send_media_group(
-            chat_id=job.chat_id,
-            media=media,
-            read_timeout=180,
-            write_timeout=180,
-        )
+        if failed_items:
+            await app.bot.send_message(job.chat_id, "部分图片生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
         await cleanup_progress_messages(app, job)
     finally:
         for handle in file_handles:
@@ -1142,6 +1151,7 @@ async def process_image_job(app: Application, job: Job) -> None:
 
 async def process_video_job(app: Application, job: Job) -> None:
     output_video_paths: list[str] = []
+    failed_items: list[str] = []
     try:
         total_count = job.video_count or DEFAULT_VIDEO_COUNT
         await send_progress_message(
@@ -1151,6 +1161,7 @@ async def process_video_job(app: Application, job: Job) -> None:
             f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}, count={total_count}",
         )
 
+        success_count = 0
         for current_index in range(1, total_count + 1):
             effective_prompt = job.prompt
             try:
@@ -1178,19 +1189,21 @@ async def process_video_job(app: Application, job: Job) -> None:
                         await send_progress_message(app, job, f"重试任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
                         result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
                     except RuntimeError as retry_error:
-                        if "content moderation" in str(retry_error).lower():
-                            raise RuntimeError("视频生成连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试。") from retry_error
-                        raise
+                        failed_items.append(f"第 {current_index} 个视频失败：{normalize_exception_message(retry_error, job_kind='video')}")
+                        continue
                 else:
-                    raise
+                    failed_items.append(f"第 {current_index} 个视频失败：{normalize_exception_message(e, job_kind='video')}")
+                    continue
             video_info = result.get("video", {})
             video_url = video_info.get("url")
             if not video_url:
-                raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
+                failed_items.append(f"第 {current_index} 个视频失败：任务失败：xAI 返回了完成状态，但没有给出视频下载地址。请稍后重试。")
+                continue
 
             await send_progress_message(app, job, f"视频已生成，开始下载并回传 Telegram...（{current_index}/{total_count}）")
             output_video_path = download_binary(video_url, f"_{current_index}.mp4")
             output_video_paths.append(output_video_path)
+            success_count += 1
 
             with open(output_video_path, "rb") as f:
                 await app.bot.send_video(
@@ -1199,12 +1212,18 @@ async def process_video_job(app: Application, job: Job) -> None:
                     caption=(
                         "视频生成完成\n"
                         f"progress={current_index}/{total_count}\n"
+                        f"success={success_count}/{total_count}\n"
                         f"request_id={request_id}\n"
                         f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
                     ),
                     read_timeout=300,
                     write_timeout=300,
                 )
+
+        if success_count == 0:
+            raise RuntimeError("本次视频任务全部失败，没有可发送的结果。")
+        if failed_items:
+            await app.bot.send_message(job.chat_id, "部分视频生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
         await cleanup_progress_messages(app, job)
     finally:
         cleanup_paths(*output_video_paths)
@@ -1213,6 +1232,7 @@ async def process_video_job(app: Application, job: Job) -> None:
 async def process_img2video_job(app: Application, job: Job) -> None:
     input_image_path = job.cached_image_path
     output_video_paths: list[str] = []
+    failed_items: list[str] = []
     try:
         if not input_image_path or not Path(input_image_path).exists():
             raise RuntimeError("本地图生视频缓存图不存在，无法执行任务")
@@ -1228,6 +1248,7 @@ async def process_img2video_job(app: Application, job: Job) -> None:
             f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}, count={total_count}",
         )
 
+        success_count = 0
         for current_index in range(1, total_count + 1):
             effective_prompt = job.prompt
             try:
@@ -1257,19 +1278,21 @@ async def process_img2video_job(app: Application, job: Job) -> None:
                         await send_progress_message(app, job, f"重试任务已提交（{current_index}/{total_count}）\nrequest_id={request_id}\n开始轮询生成结果，请稍等。")
                         result = await poll_video_result(request_id, preferred_key_index=preferred_key_index)
                     except RuntimeError as retry_error:
-                        if "content moderation" in str(retry_error).lower():
-                            raise RuntimeError("图生视频连续两次被审核拒绝。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述后再试；如果仍失败，一个可能原因是原图本身触发了审核。") from retry_error
-                        raise
+                        failed_items.append(f"第 {current_index} 个图生视频失败：{normalize_exception_message(retry_error, job_kind='img2video')}")
+                        continue
                 else:
-                    raise
+                    failed_items.append(f"第 {current_index} 个图生视频失败：{normalize_exception_message(e, job_kind='img2video')}")
+                    continue
             video_info = result.get("video", {})
             video_url = video_info.get("url")
             if not video_url:
-                raise RuntimeError(f"任务完成，但没拿到视频 URL: {result}")
+                failed_items.append(f"第 {current_index} 个图生视频失败：任务失败：xAI 返回了完成状态，但没有给出视频下载地址。请稍后重试。")
+                continue
 
             await send_progress_message(app, job, f"视频已生成，开始下载并回传 Telegram...（{current_index}/{total_count}）")
             output_video_path = download_binary(video_url, f"_{current_index}.mp4")
             output_video_paths.append(output_video_path)
+            success_count += 1
 
             with open(output_video_path, "rb") as f:
                 await app.bot.send_video(
@@ -1278,12 +1301,18 @@ async def process_img2video_job(app: Application, job: Job) -> None:
                     caption=(
                         "图生视频完成\n"
                         f"progress={current_index}/{total_count}\n"
+                        f"success={success_count}/{total_count}\n"
                         f"request_id={request_id}\n"
                         f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
                     ),
                     read_timeout=300,
                     write_timeout=300,
                 )
+
+        if success_count == 0:
+            raise RuntimeError("本次图生视频任务全部失败，没有可发送的结果。")
+        if failed_items:
+            await app.bot.send_message(job.chat_id, "部分图生视频生成失败，但已先发送成功结果：\n" + "\n".join(failed_items[:10]))
         await cleanup_progress_messages(app, job)
     finally:
         cleanup_paths(input_image_path, *output_video_paths)
