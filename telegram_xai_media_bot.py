@@ -487,6 +487,74 @@ def is_failover_status(status_code: int) -> bool:
     return status_code in XAI_FAILOVER_STATUS_CODES
 
 
+def summarize_xai_error(status_code: int, body_preview: str, *, stage: str = "请求") -> str:
+    lowered = body_preview.lower()
+
+    if "content moderation" in lowered or "rejected by content moderation" in lowered:
+        return f"{stage}失败：触发了内容审核。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述；如果是图生视频，也可能是原图触发审核。"
+    if "insufficient" in lowered and ("credit" in lowered or "quota" in lowered or "balance" in lowered or "fund" in lowered):
+        return f"{stage}失败：xAI 账户额度不足或余额不足。"
+    if "quota exceeded" in lowered or "rate limit" in lowered or "too many requests" in lowered:
+        return f"{stage}失败：请求过于频繁，触发了速率限制或并发限制，请稍后重试。"
+    if "concurrent" in lowered or "capacity" in lowered or "overloaded" in lowered or "server is busy" in lowered:
+        return f"{stage}失败：上游并发已满或服务繁忙，请稍后重试。"
+    if "invalid argument" in lowered or "invalid request" in lowered or "unsupported" in lowered or "malformed" in lowered:
+        return f"{stage}失败：请求参数不合法。请检查模型、数量、分辨率、比例或提示词格式。"
+    if status_code == 401:
+        return f"{stage}失败：API Key 无效或已失效。"
+    if status_code == 403:
+        return f"{stage}失败：当前 Key 没有权限访问这个接口或模型。"
+    if status_code == 404:
+        return f"{stage}失败：请求的接口或任务不存在。"
+    if status_code == 408:
+        return f"{stage}失败：请求超时。"
+    if status_code == 429:
+        return f"{stage}失败：请求过多，已触发速率限制。"
+    if 500 <= status_code <= 599:
+        return f"{stage}失败：xAI 服务端异常，请稍后重试。"
+    return f"{stage}失败：xAI 拒绝了请求，请检查参数、提示词或账户状态。"
+
+
+def build_xai_runtime_error(status_code: int, body_preview: str, *, key_index: int, stage: str = "请求") -> RuntimeError:
+    summary = summarize_xai_error(status_code, body_preview, stage=stage)
+    details = f"key#{key_index} status={status_code} body={body_preview}"
+    return RuntimeError(f"{summary}\n技术细节：{details}")
+
+
+def normalize_exception_message(exc: Exception, *, job_kind: str | None = None) -> str:
+    text = str(exc).strip()
+    lowered = text.lower()
+
+    if isinstance(exc, TimeoutError) or "等待超时" in text or "timed out" in lowered:
+        return "任务超时：xAI 长时间没有返回结果。请稍后重试；如果当前数量较多，可先降低生成数量。"
+    if "content moderation" in lowered or "触发了内容审核" in text or "审核拒绝" in text:
+        if job_kind == "img2video":
+            return "图生视频失败：触发了内容审核。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述；如果仍失败，一个可能原因是原图本身触发了审核。"
+        if job_kind == "video":
+            return "视频生成失败：触发了内容审核。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述。"
+        if job_kind == "image":
+            return "图片生成失败：触发了内容审核。请把提示词改得更日常、更中性，减少性感/暴力/敏感描述。"
+    if "额度不足" in text or "余额不足" in text:
+        return text
+    if "速率限制" in text or "并发限制" in text or "服务繁忙" in text:
+        return text
+    if "请求参数不合法" in text:
+        return text
+    if "api key 无效" in text.lower() or "没有权限" in text:
+        return text
+    if "任务失败，status=expired" in text or '"status": "expired"' in lowered:
+        return "任务失败：上游任务已过期，通常是排队或处理时间过长，请稍后重试。"
+    if "任务失败，status=failed" in text or '"status": "failed"' in lowered:
+        return "任务失败：xAI 已接收请求，但生成阶段失败。请稍后重试；如果连续失败，建议简化提示词或降低数量。"
+    if "没拿到视频 url" in lowered:
+        return "任务失败：xAI 返回了完成状态，但没有给出视频下载地址。请稍后重试。"
+    if "图片接口未返回可用 url" in text:
+        return "图片生成失败：xAI 没有返回可用图片地址，请稍后重试。"
+    if "本地图生视频缓存图不存在" in text:
+        return text
+    return text
+
+
 def xai_request(method: str, url: str, *, json: dict | None = None, timeout: int = XAI_REQUEST_TIMEOUT, preferred_key_index: int | None = None) -> tuple[requests.Response, int]:
     errors = []
     total = len(XAI_API_KEYS)
@@ -519,10 +587,7 @@ def xai_request(method: str, url: str, *, json: dict | None = None, timeout: int
                 continue
 
             if 400 <= resp.status_code < 500 and resp.status_code not in XAI_FAILOVER_STATUS_CODES:
-                raise RuntimeError(
-                    "xAI 请求被拒绝（更像是请求参数/模型/提示词问题，不是 key 失效）: "
-                    + error_msg
-                )
+                raise build_xai_runtime_error(resp.status_code, body_preview, key_index=key_index)
 
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -647,7 +712,9 @@ async def poll_video_result(request_id: str, preferred_key_index: int | None = N
             return data
         if status in {"failed", "expired"}:
             logger.error("视频生成失败，status=%s，完整响应=%s", status, data)
-            raise RuntimeError(f"任务失败，status={status}，响应={data}")
+            if status == "expired":
+                raise RuntimeError("任务失败：上游任务已过期，通常是排队或处理时间过长，请稍后重试。")
+            raise RuntimeError("任务失败：xAI 已接收请求，但生成阶段失败。请稍后重试；如果连续失败，建议简化提示词或降低数量。")
         if time.time() - started > MAX_WAIT_SECONDS:
             raise TimeoutError(f"等待超时，request_id={request_id}")
 
@@ -1243,8 +1310,9 @@ async def job_worker(app: Application) -> None:
             except Exception as e:
                 logger.exception("job failed: %s", job.kind)
                 await cleanup_progress_messages(app, job)
-                await app.bot.send_message(job.chat_id, f"任务执行失败：{e}")
-                write_bot_status(state="idle", last_job=job.kind, last_result=f"error: {e}", queue_size=JOB_QUEUE.qsize())
+                user_message = normalize_exception_message(e, job_kind=job.kind)
+                await app.bot.send_message(job.chat_id, f"任务执行失败：{user_message}")
+                write_bot_status(state="idle", last_job=job.kind, last_result=f"error: {user_message}", queue_size=JOB_QUEUE.qsize())
             finally:
                 JOB_QUEUE.task_done()
     except asyncio.CancelledError:

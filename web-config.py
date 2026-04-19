@@ -94,7 +94,22 @@ def get_log_text(level='all'):
         if LOG_FILE.exists():
             lines = LOG_FILE.read_text(encoding='utf-8', errors='replace').splitlines()
             if level == 'error':
-                lines = [line for line in lines if 'ERROR' in line or 'Traceback' in line or 'RuntimeError' in line]
+                lines = [
+                    line for line in lines
+                    if 'ERROR' in line
+                    or 'Traceback' in line
+                    or 'RuntimeError' in line
+                    or '任务执行失败：' in line
+                    or '触发了内容审核' in line
+                    or '额度不足' in line
+                    or '余额不足' in line
+                    or '速率限制' in line
+                    or '并发限制' in line
+                    or '服务繁忙' in line
+                    or '请求参数不合法' in line
+                    or '任务超时' in line
+                    or '已过期' in line
+                ]
             elif level == 'progress':
                 lines = [line for line in lines if 'progress |' in line or 'enqueue |' in line or '视频生成完成' in line or '图生视频提交成功' in line]
             return '\n'.join(lines[-300:]) if lines else '暂无匹配日志'
