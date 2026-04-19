@@ -1106,7 +1106,9 @@ async def process_image_job(app: Application, job: Job) -> None:
 
         caption = (
             "图片生成完成\n"
-            f"success={len(image_paths)}/{count}, ratio={ratio}, model={model}"
+            f"已完成：{len(image_paths)}/{count} 张\n"
+            f"比例：{ratio}\n"
+            f"模型：{model}"
         )
 
         if len(image_paths) == 1:
@@ -1140,7 +1142,7 @@ async def process_image_job(app: Application, job: Job) -> None:
         if failed_items:
             await app.bot.send_message(
                 job.chat_id,
-                f"本次图片请求共 {count} 张，成功 {len(image_paths)} 张，失败 {len(failed_items)} 张。\n"
+                f"图片任务结果汇总\n总数：{count} 张\n成功：{len(image_paths)} 张\n失败：{len(failed_items)} 张\n"
                 "已先发送成功结果，失败详情：\n"
                 + "\n".join(failed_items[:10]),
             )
@@ -1216,10 +1218,12 @@ async def process_video_job(app: Application, job: Job) -> None:
                     video=f,
                     caption=(
                         "视频生成完成\n"
-                        f"progress={current_index}/{total_count}\n"
-                        f"success={success_count}/{total_count}\n"
-                        f"request_id={request_id}\n"
-                        f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
+                        f"当前进度：第 {current_index}/{total_count} 个\n"
+                        f"已成功：{success_count}/{total_count} 个\n"
+                        f"任务编号：{request_id}\n"
+                        f"时长：{job.duration} 秒\n"
+                        f"比例：{job.aspect_ratio}\n"
+                        f"分辨率：{job.resolution}"
                     ),
                     read_timeout=300,
                     write_timeout=300,
@@ -1230,7 +1234,7 @@ async def process_video_job(app: Application, job: Job) -> None:
         if failed_items:
             await app.bot.send_message(
                 job.chat_id,
-                f"本次视频请求共 {total_count} 个，成功 {success_count} 个，失败 {len(failed_items)} 个。\n"
+                f"视频任务结果汇总\n总数：{total_count} 个\n成功：{success_count} 个\n失败：{len(failed_items)} 个\n"
                 "已先发送成功结果，失败详情：\n"
                 + "\n".join(failed_items[:10]),
             )
@@ -1309,11 +1313,13 @@ async def process_img2video_job(app: Application, job: Job) -> None:
                     chat_id=job.chat_id,
                     video=f,
                     caption=(
-                        "图生视频完成\n"
-                        f"progress={current_index}/{total_count}\n"
-                        f"success={success_count}/{total_count}\n"
-                        f"request_id={request_id}\n"
-                        f"duration={job.duration}, ratio={job.aspect_ratio}, resolution={job.resolution}"
+                        "图生视频生成完成\n"
+                        f"当前进度：第 {current_index}/{total_count} 个\n"
+                        f"已成功：{success_count}/{total_count} 个\n"
+                        f"任务编号：{request_id}\n"
+                        f"时长：{job.duration} 秒\n"
+                        f"比例：{job.aspect_ratio}\n"
+                        f"分辨率：{job.resolution}"
                     ),
                     read_timeout=300,
                     write_timeout=300,
@@ -1324,7 +1330,7 @@ async def process_img2video_job(app: Application, job: Job) -> None:
         if failed_items:
             await app.bot.send_message(
                 job.chat_id,
-                f"本次图生视频请求共 {total_count} 个，成功 {success_count} 个，失败 {len(failed_items)} 个。\n"
+                f"图生视频任务结果汇总\n总数：{total_count} 个\n成功：{success_count} 个\n失败：{len(failed_items)} 个\n"
                 "已先发送成功结果，失败详情：\n"
                 + "\n".join(failed_items[:10]),
             )
