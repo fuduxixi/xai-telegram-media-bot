@@ -1,9 +1,6 @@
 # Author: by fuduxixi
 services:
   telegram-bot:
-    build:
-      context: .
-      target: bot
     image: ghcr.io/fuduxixi/xai-telegram-media-bot:latest
     container_name: xai-telegram-media-bot
     restart: unless-stopped
@@ -21,9 +18,6 @@ services:
       - /tmp:/tmp
 
   web-config:
-    build:
-      context: .
-      target: web
     image: ghcr.io/fuduxixi/xai-telegram-media-web:latest
     container_name: xai-telegram-media-web
     restart: unless-stopped

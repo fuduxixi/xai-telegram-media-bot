@@ -97,8 +97,14 @@ WEB_PORT=5000
 ### 4. 启动服务
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+说明：
+
+- `docker-compose.yml` 默认直接使用 GitHub Actions 已发布到 GHCR 的镜像。
+- 不再需要本地 `build`。
 
 ### 5. 查看运行状态
 
@@ -255,10 +261,11 @@ http://<server-ip>:5000
 docker compose up -d
 ```
 
-### 重新构建并启动
+### 拉取最新镜像并重启
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 ### 重启服务
