@@ -458,22 +458,19 @@ CONFIG_HTML = """
                 </div>
             </div>
 
-            <div class="h-24"></div>
+            <div class="h-40"></div>
         </form>
 
-        <button type="submit" form="config-form" class="fixed bottom-8 right-8 z-50 px-8 py-5 text-lg font-semibold bg-gradient-to-r from-blue-600 via-purple-600 to-violet-600 rounded-3xl hover:brightness-110 transition-all duration-200 shadow-2xl shadow-purple-500/40">
-            保存并热重载
-        </button>
-
-        <div class="mt-16 text-center text-slate-500 text-sm flex flex-col gap-2">
-            <div class="flex justify-center gap-4">
-                <a href="/logs" class="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl transition flex items-center gap-3">
-                    📜 查看实时日志
-                </a>
-                <a href="/restart" onclick="return confirm('确定要重启机器人吗？')" class="px-8 py-4 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-2xl transition flex items-center gap-3">
-                    ↻ 重启机器人
-                </a>
-            </div>
+        <div class="fixed bottom-8 right-8 z-50 flex flex-col gap-4 items-end">
+            <a href="/logs" class="px-8 py-5 text-lg font-semibold bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 rounded-3xl hover:brightness-110 transition-all duration-200 shadow-2xl shadow-slate-900/40 min-w-[220px] text-center">
+                查看实时日志
+            </a>
+            <a href="/restart" onclick="return confirm('确定要重启机器人吗？')" class="px-8 py-5 text-lg font-semibold bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-slate-950 rounded-3xl hover:brightness-110 transition-all duration-200 shadow-2xl shadow-orange-500/30 min-w-[220px] text-center">
+                重启机器人
+            </a>
+            <button type="submit" form="config-form" class="px-8 py-5 text-lg font-semibold bg-gradient-to-r from-blue-600 via-purple-600 to-violet-600 rounded-3xl hover:brightness-110 transition-all duration-200 shadow-2xl shadow-purple-500/40 min-w-[220px] text-center">
+                保存并热重载
+            </button>
         </div>
     </div>
 
